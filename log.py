@@ -1,37 +1,44 @@
-import getpass 
-import datetime
-from datetime import date, datetime
 import pandas as pd
 import os
+import socket
+import getpass
+from datetime import datetime
+from functools import wraps
 
-def log(func):
-    def wrapper(*args, **kwargs):
-        original_result = func(*args, **kwargs)
-
-
-        user_name = getpass.getuser()
-        func_name = func.__name__
-        formatted_date = date.strftime("%d-%m-%Y")
-        formatted_time = datetime.now().time()
-
-        if os.path.isfile("logs.csv"):
-            print("Файл существует")
-            file_df = pd.read_csv("logs.csv")
-            df = pd.DataFrame([len(file_df),user_name, func_name, formatted_date, formatted_time],
-            columns=['id', 'user_name', 'func_name', 'formatted_date', 'data_time'])
-            df.to_csv('logs.csv',  mode='a', index=False)
-
-
-        else:
-            print("Файл не существует")
-            df = pd.DataFrame([0,user_name, func_name, formatted_date, formatted_time],
-            columns=['id', 'user_name', 'func_name', 'formatted_date', 'data_time'])
-            df.to_csv('logs.csv')
-
-
-
-
-
-
-        return original_result
-    return wrapper
+def log_decorator(log_file='logs.csv'):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Данные для логирования
+            log_id = 1
+            pc_name = socket.gethostname()
+            username = getpass.getuser()
+            function_name = func.__name__
+            now = datetime.now()
+            date_str = now.strftime("%d.%m.%Y")
+            time_str = now.strftime("%H:%M:%S")
+            
+            # Запись
+            log_entry = {
+                "id": log_id,
+                "pc": pc_name,
+                "username": username,
+                "function name": function_name,
+                "Date": date_str,
+                "Time": time_str
+            }
+            
+            # Загрузка или создание DF
+            if os.path.exists(log_file):
+                df = pd.read_csv(log_file)
+                log_entry["id"] = df.shape[0] + 1  # ID на основе количества записей
+                df = pd.concat([df, pd.DataFrame([log_entry])], ignore_index=True)
+            else:
+                df = pd.DataFrame([log_entry])
+            
+            # Сохранение в файл
+            df.to_csv(log_file, index=False)
+            
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
